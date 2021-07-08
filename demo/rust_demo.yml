@@ -1,0 +1,7 @@
+name: rust_demo
+channels:
+  - defaults
+dependencies:
+  - python
+  - pandas
+  - requests
