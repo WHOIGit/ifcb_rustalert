@@ -202,7 +202,7 @@ def check_datafile(args, df_bins=None):
         print(f'Checking Counts Against Threshold ({args.threshold} perL)')
         ago = now-sample_time
         ago_h, ago_m = ago.days*24+ago.seconds//3600, (ago.seconds//60)%60
-        print(f'  Latest Counts: {round(taxon_perL)} (sample_time: {ago_h}-hours {ago_m}-minutes ago, from {bin_id})')
+        print(f'  Latest Counts: {round(taxon_perL)} perL (sample_time: {ago_h}-hours {ago_m}-minutes ago, from {bin_id})')
 
     if taxon_perL > args.threshold:
         set_pump_timer(args.timerfile, sample_time)
@@ -221,9 +221,14 @@ def check_datafile(args, df_bins=None):
         if args.v: print('  Counts Below Threshold and Pump Timer has run out: Turning Pump back ON and Aerator OFF')
         if args.powerstrip: set_pumpOn_aeratorOff(pump_args,aerator_args)
         set_pump_timer(args.timerfile,None)
-        df_log.iloc[-1]['pump_back_on'] = now
+        df_log.iat[-1,df.columns.get_loc('pump_back_on')] = now
         if args.v>=2: print(f'Saving new entry to logfile: {args.logfile}')
         df_log.to_csv(args.logfile)
+
+    elif pump_timer:
+        if args.v:
+            remaining = (now-pump_timer)-dt.timedelta(hours=args.timer)
+            print(f'  Counts Below Threshold, but {str(remaining).replace("0 days ","")} remains on Pump Timer')
 
     else:
         if args.v: print('  Counts Below Threshold: all is well')
@@ -235,12 +240,9 @@ if __name__ == '__main__':
     parser.add_argument('-v', '--verbose', dest='v', action='count', default=0)
 
     conn = parser.add_argument_group(title='Connection', description=None)
-    conn.add_argument('--dashboard', metavar='URL', default='habon-ifcb.whoi.edu',
-        help='The target ifcb dashboard url. Default is "habon-ifcb.whoi.edu"')
-    conn.add_argument('--dataset', default='fiddlers',
-        help='An ifcb dataset. Default is "fiddlers"')
-    conn.add_argument('--ifcb', metavar='ID', default='IFCB149',
-        help='Instrument to pull data from. Default is "IFCB149"')
+    conn.add_argument('--dashboard', metavar='URL', help='The target ifcb dashboard url.')
+    conn.add_argument('--dataset', help='An ifcb dataset.')
+    conn.add_argument('--ifcb', metavar='ID', help='Instrument to pull data from.')
 
     data = parser.add_argument_group(title='Data', description=None)
     data.add_argument('--taxon', default='Margalefidinium',
@@ -255,19 +257,18 @@ if __name__ == '__main__':
     power = parser.add_argument_group(title='Powerstrip', description=None)
     power.add_argument('--timer', metavar='HOURS', default=1.5, type=float,
         help='Minimum amount of time to toggle off for in hours. Default is "1.5" hours')
-    power.add_argument('--powerstrip', metavar='URL', default='http://127.0.0.1',
-        help='The url of the network switch. Default is "http://127.0.0.1"')
+    power.add_argument('--powerstrip', metavar='URL', help='The url of the network switch.')
     power.add_argument('--powerstrip-auth', nargs=2, metavar=('USER','PASS'),
         help='The login user and password of the network switch.')
-    power.add_argument('--pump-outlet', metavar='ID', type=int, default=0)
-    power.add_argument('--aerator-outlet', metavar='ID', type=int, default=1)
+    power.add_argument('--pump-outlet', metavar='ID', type=int)
+    power.add_argument('--aerator-outlet', metavar='ID', type=int)
     power.add_argument('--logfile', default='data/{TAXON}.pumplog.csv',
         help='Notes when outlets are toggled. Default is "data/{TAXON}.pumplog.csv"')
     power.add_argument('--timerfile', default='data/.{TAXON}.pumptimer.txt',
         help='Pump timer reset file. Default is "data/.{TAXON}.pumptimer.txt"')
 
     alert = parser.add_argument_group(title='Alerts', description=None)
-    alert.add_argument('--emails', metavar='EMAIL', nargs='?', default=['sbatchelder@whoi.edu'])
+    alert.add_argument('--emails', metavar='EMAIL', nargs='?')
     alert.add_argument('--sms', nargs='?')
 
     # alternate method of providing arguments
@@ -292,7 +293,7 @@ if __name__ == '__main__':
     args.datafile = filecheck(args.datafile)
     args.timerfile = filecheck(args.timerfile)
 
-    args.powerstrip_auth = tuple(args.powerstrip_auth)
+    if args.powerstrip_auth: args.powerstrip_auth = tuple(args.powerstrip_auth)
 
     df = update_datafile(args)
     check_datafile(args, df)
