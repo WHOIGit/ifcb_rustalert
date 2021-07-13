@@ -1,0 +1,12 @@
+--dashboard habon-ifcb.whoi.edu
+--dataset fiddlers
+--ifcb IFCB149
+--taxon Margalefidinium
+--threshold 1000
+--timer 1.5
+--powerstrip http://127.0.0.1
+--powerstrip-auth xxxx xxxx
+--pump-outlet 0
+--aerator-outlet 1
+--emails sbatchelder@whoi.edu
+--verbose
