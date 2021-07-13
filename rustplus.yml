@@ -1,9 +1,9 @@
-name: rust_hab
+name: rustplus
 channels:
   - defaults
 dependencies:
   - python=3.8
-  - pandas
+  - pandas=1.2
   - requests
+  - matplotlib=3.4
   - jupyter
-  - matplotlib

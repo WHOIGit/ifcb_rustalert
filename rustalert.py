@@ -96,7 +96,7 @@ def update_datafile(args):
     # 1) collect new bin list
     now = dt.datetime.now(pytz.UTC)
     now = now-dt.timedelta(microseconds=now.microsecond) # dump microseconds
-    poll_date = now-dt.timedelta(days=0.25)
+    poll_date = now-dt.timedelta(hours=3)
     poll_date = poll_date.isoformat(timespec='hours')
     if args.v>=2: print(f'Fetching Bins since {poll_date} from {args.dashboard.replace("https://","")} {args.dataset} {args.ifcb}')
     bin_df = list_bins(args.dashboard, args.dataset, args.ifcb, start_date=poll_date)
@@ -201,8 +201,7 @@ def check_datafile(args, df_bins=None):
     if args.v:
         print(f'Checking Counts Against Threshold ({args.threshold} perL)')
         ago = now-sample_time
-        ago_h, ago_m = ago.days*24+ago.seconds//3600, (ago.seconds//60)%60
-        print(f'  Latest Counts: {round(taxon_perL)} perL (sample_time: {ago_h}-hours {ago_m}-minutes ago, from {bin_id})')
+        print(f'  Latest Counts: {round(taxon_perL)} perL (sample_time: {str(ago).replace("0 days ","")} ago, from {bin_id})')
 
     if taxon_perL > args.threshold:
         set_pump_timer(args.timerfile, sample_time)
@@ -293,7 +292,14 @@ if __name__ == '__main__':
     args.datafile = filecheck(args.datafile)
     args.timerfile = filecheck(args.timerfile)
 
+    if args.powerstrip.lower() in ['none','0']: args.powerstrip = None
     if args.powerstrip_auth: args.powerstrip_auth = tuple(args.powerstrip_auth)
 
+    if args.pump_outlet: args.pump_outlet -=1
+    if args.aerator_outlet: args.aerator_outlet -=1
+
     df = update_datafile(args)
-    check_datafile(args, df)
+    if args.threshold:
+        check_datafile(args, df)
+    else:
+        if args.v: print('No Threshold set. PROGRAM END')

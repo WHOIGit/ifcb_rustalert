@@ -4,5 +4,9 @@
 --taxon Margalefidinium
 --threshold 1000
 --timer 1.5
+--powerstrip None
+--powerstrip-auth xxxx xxxx
+--pump-outlet 1
+--aerator-outlet 2
 --emails sbatchelder@whoi.edu
 --verbose
