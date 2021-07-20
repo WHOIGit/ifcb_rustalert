@@ -218,17 +218,18 @@ def check_datafile(args, df_bins=None):
     if taxon_perL > args.threshold:
         set_pump_timer(args.timerfile, sample_time)
         if pump_timer is None:
-            msg = f'Counts Above Threshold\n  \
-                    Threshold: {args.threshold}/L\n  \
-                    Counts: {taxon_perL}/L\n  \
-                    SampleTime: {sample_time.astimezone(pytz.timezone("US/Eastern"))}\n  \
-                    Bin: {bin_id}\n\n\
-                    Setting pump timer + Turning Pump OFF and Aerator ON'
+            msg = ('Counts Above Threshold\n    '
+                   f'Threshold: {args.threshold}/L\n    '
+                   f'Counts: {taxon_perL}/L\n    '
+                   f'SampleTime: {sample_time.astimezone(pytz.timezone("US/Eastern"))}\n    '
+                   f'Bin: {bin_id}\n\n'
+                   'Setting pump timer + Turning Pump OFF and Aerator ON')
             if args.v: print(msg.replace('\n','; '))
             if args.powerstrip:
                 try: set_pumpOff_aeratorOn(pump_args,aerator_args)
                 except requests.exceptions.RequestException as e:
                     print(f'  ERROR: set_pumpOff_aeratorOn({args.powerstrip}) - Connection Failed')
+                    # TODO add pump states to email message
             if args.email_config:
                 subject = f"[{args.ifcb}] ALERT: Rust Above Threshold"
                 send_emails(SUBJECT=subject, BODY=msg, **email_args)
@@ -250,6 +251,7 @@ def check_datafile(args, df_bins=None):
             try: set_pumpOn_aeratorOff(pump_args,aerator_args)
             except requests.exceptions.RequestException as e:
                 print(f'  ERROR: set_pumpOn_aeratorOff({args.powerstrip}) - Connection Failed')
+                #TODO add pump states to email message
         set_pump_timer(args.timerfile,None)
         if args.email_config:
             subject = f"[{args.ifcb}]Rust Back Below Threshold"
