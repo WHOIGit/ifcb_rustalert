@@ -51,7 +51,7 @@ def get_class_scores(url_prefix, dataset, bin_id):
 
 def get_outlet(url_prefix, credentials, outlet):
     url = f'{url_prefix}/restapi/relay/outlets/{outlet}/physical_state/'
-    r = requests.get(url, auth=credentials)
+    r = requests.get(url, auth=credentials, timeout=7)
     return r.json()
 
 
@@ -197,25 +197,38 @@ def check_datafile(args, df_bins=None):
         if args.v: print('Checking Powerstrip States')
         pump_args = [args.powerstrip,args.powerstrip_auth,args.pump_outlet]
         aerator_args = [args.powerstrip,args.powerstrip_auth,args.aerator_outlet]
-        pump_on = get_outlet(*pump_args)
-        aerator_on = get_outlet(*aerator_args)
-        if args.v: print(f'  Pump Outlet:    {"ON" if pump_on else "OFF"}\n  Aerator Outlet: {"ON" if aerator_on else "OFF"}')
+        try:
+            pump_on = get_outlet(*pump_args)
+            aerator_on = get_outlet(*aerator_args)
+            if args.v: print(f'  Pump Outlet:    {"ON" if pump_on else "OFF"}\n  Aerator Outlet: {"ON" if aerator_on else "OFF"}')
+        except requests.exceptions.RequestException as e:
+            print(f'  ERROR: get_outlet({args.powerstrip}) - Connection Failed')
+            pump_on,aerator_on = None,None
+            if args.v: print('  Pump Outlet:    ???\n  Aerator Outlet: ???')
 
     if args.email_config:
         email_args = dict(TO=args.emails, SMTPserver=args.email_config[0], USER=args.email_config[1], PASS=args.email_config[2])
 
     # 3) check for any triggering behaviors
+    ago = now - sample_time
     if args.v:
         print(f'Checking Counts Against Threshold ({args.threshold} perL)')
-        ago = now-sample_time
         print(f'  Latest Counts: {round(taxon_perL)} perL (sample_time: {str(ago).replace("0 days ","")} ago, from {bin_id})')
 
     if taxon_perL > args.threshold:
         set_pump_timer(args.timerfile, sample_time)
         if pump_timer is None:
-            msg = 'Counts Above Threshold: Setting pump timer + Turning Pump OFF and Aerator ON'
-            if args.v: print(msg)
-            if args.powerstrip: set_pumpOff_aeratorOn(pump_args,aerator_args)
+            msg = f'Counts Above Threshold\n  \
+                    Threshold: {args.threshold}/L\n  \
+                    Counts: {taxon_perL}/L\n  \
+                    SampleTime: {sample_time.astimezone(pytz.timezone("US/Eastern"))}\n  \
+                    Bin: {bin_id}\n\n\
+                    Setting pump timer + Turning Pump OFF and Aerator ON'
+            if args.v: print(msg.replace('\n','; '))
+            if args.powerstrip:
+                try: set_pumpOff_aeratorOn(pump_args,aerator_args)
+                except requests.exceptions.RequestException as e:
+                    print(f'  ERROR: set_pumpOff_aeratorOn({args.powerstrip}) - Connection Failed')
             if args.email_config:
                 subject = f"[{args.ifcb}] ALERT: Rust Above Threshold"
                 send_emails(SUBJECT=subject, BODY=msg, **email_args)
@@ -231,9 +244,12 @@ def check_datafile(args, df_bins=None):
             if args.v: print(msg)
 
     elif pump_timer and sample_time - pump_timer > dt.timedelta(hours=args.timer):
-        msg = 'Counts Below Threshold and Pump Timer has run out: Turning Pump back ON and Aerator OFF'
-        if args.v: print(' ',msg)
-        if args.powerstrip: set_pumpOn_aeratorOff(pump_args,aerator_args)
+        msg = 'Counts Below Threshold and Pump Timer has run out\n\nTurning Pump back ON and Aerator OFF'
+        if args.v: print(' ',msg.replace('\n',';'))
+        if args.powerstrip:
+            try: set_pumpOn_aeratorOff(pump_args,aerator_args)
+            except requests.exceptions.RequestException as e:
+                print(f'  ERROR: set_pumpOn_aeratorOff({args.powerstrip}) - Connection Failed')
         set_pump_timer(args.timerfile,None)
         if args.email_config:
             subject = f"[{args.ifcb}]Rust Back Below Threshold"
@@ -288,8 +304,8 @@ if __name__ == '__main__':
         help='Pump timer reset file. Default is "data/.{TAXON}.pumptimer.txt"')
 
     alert = parser.add_argument_group(title='Alerts', description=None)
-    alert.add_argument('--emails', metavar='EMAIL', nargs='?')
-    alert.add_argument('--email-config', metavar=('SMTP','USER','PASS'), nargs='3')
+    alert.add_argument('--emails', metavar='EMAIL', nargs='+')
+    alert.add_argument('--email-config', metavar=('SMTP','USER','PASS'), nargs=3)
 
     # alternate method of providing arguments
     class LoadFromFile(argparse.Action):
