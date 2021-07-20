@@ -2,12 +2,16 @@ import argparse
 import datetime as dt
 import os.path
 from time import sleep
+from smtplib import SMTP_SSL as SMTP
 from urllib.error import HTTPError
+from email.mime.text import MIMEText
 import shlex
 
 import pandas as pd
 import requests
 import pytz
+
+from emailing import send_emails
 
 def list_bins(url_prefix, dataset, instrument, start_date, end_date=None):
     url = f'{url_prefix}/api/list_bins'
@@ -197,6 +201,9 @@ def check_datafile(args, df_bins=None):
         aerator_on = get_outlet(*aerator_args)
         if args.v: print(f'  Pump Outlet:    {"ON" if pump_on else "OFF"}\n  Aerator Outlet: {"ON" if aerator_on else "OFF"}')
 
+    if args.email_config:
+        email_args = dict(TO=args.emails, SMTPserver=args.email_config[0], USER=args.email_config[1], PASS=args.email_config[2])
+
     # 3) check for any triggering behaviors
     if args.v:
         print(f'Checking Counts Against Threshold ({args.threshold} perL)')
@@ -206,31 +213,45 @@ def check_datafile(args, df_bins=None):
     if taxon_perL > args.threshold:
         set_pump_timer(args.timerfile, sample_time)
         if pump_timer is None:
-            if args.v: print('Counts Above Threshold: Setting pump timer + Turning Pump OFF and Aerator ON')
+            msg = 'Counts Above Threshold: Setting pump timer + Turning Pump OFF and Aerator ON'
+            if args.v: print(msg)
             if args.powerstrip: set_pumpOff_aeratorOn(pump_args,aerator_args)
-            df_log = df_log.append(pd.Series(name=bin_id, data={'pump_turned_off':now}))
+            if args.email_config:
+                subject = f"[{args.ifcb}] ALERT: Rust Above Threshold"
+                send_emails(SUBJECT=subject, BODY=msg, **email_args)
+            # writing to pump logfile
             if args.v>=2: print(f'Saving new entry to logfile: {args.logfile}')
+            df_log = df_log.append(pd.Series(name=bin_id, data={'pump_turned_off':now}))
             df_log.to_csv(args.logfile)
         elif pump_timer==sample_time:
-            if args.v: print('Counts Still Above Threshold: No New Classification Data')
+            msg = 'Counts Still Above Threshold: No New Classification Data'
+            if args.v: print(msg)
         else:
-            if args.v: print('Counts Still Above Threshold: Re-Setting pump timer')
+            msg = 'Counts Still Above Threshold: Re-Setting pump timer'
+            if args.v: print(msg)
 
     elif pump_timer and sample_time - pump_timer > dt.timedelta(hours=args.timer):
-        if args.v: print('  Counts Below Threshold and Pump Timer has run out: Turning Pump back ON and Aerator OFF')
+        msg = 'Counts Below Threshold and Pump Timer has run out: Turning Pump back ON and Aerator OFF'
+        if args.v: print(' ',msg)
         if args.powerstrip: set_pumpOn_aeratorOff(pump_args,aerator_args)
         set_pump_timer(args.timerfile,None)
-        df_log.iat[-1,df.columns.get_loc('pump_back_on')] = now
+        if args.email_config:
+            subject = f"[{args.ifcb}]Rust Back Below Threshold"
+            send_emails(SUBJECT=subject, BODY=msg, **email_args)
+        # writing to pump logfile
         if args.v>=2: print(f'Saving new entry to logfile: {args.logfile}')
+        df_log.iat[-1,df_log.columns.get_loc('pump_back_on')] = now
         df_log.to_csv(args.logfile)
 
     elif pump_timer:
         if args.v:
             remaining = (now-pump_timer)-dt.timedelta(hours=args.timer)
-            print(f'  Counts Below Threshold, but {str(remaining).replace("0 days ","")} remains on Pump Timer')
+            msg = f'Counts Below Threshold, but {str(remaining).replace("0 days ","")} remains on Pump Timer'
+            print(' ',msg)
 
     else:
-        if args.v: print('  Counts Below Threshold: all is well')
+        msg = "Counts Below Threshold: all is well"
+        if args.v: print(' ',msg)
 
 
 
@@ -268,7 +289,7 @@ if __name__ == '__main__':
 
     alert = parser.add_argument_group(title='Alerts', description=None)
     alert.add_argument('--emails', metavar='EMAIL', nargs='?')
-    alert.add_argument('--sms', nargs='?')
+    alert.add_argument('--email-config', metavar=('SMTP','USER','PASS'), nargs='3')
 
     # alternate method of providing arguments
     class LoadFromFile(argparse.Action):

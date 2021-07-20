@@ -1,12 +1,13 @@
---dashboard habon-ifcb.whoi.edu
---dataset fiddlers
---ifcb IFCB149
+--dashboard URL
+--dataset NAME
+--ifcb IFCB_ID
 --taxon Margalefidinium
---threshold 1000
---timer 1.5
---powerstrip None
---powerstrip-auth xxxx xxxx
---pump-outlet 1
---aerator-outlet 2
---emails sbatchelder@whoi.edu
+--threshold PER_LITER
+--timer HOURS
+--powerstrip HOST
+--powerstrip-auth USER PASS
+--pump-outlet X
+--aerator-outlet X
+--emails ADDR@EMAIL.COM SMS@CARRIER.SERVICE.COM
+--email-config SMTPSERVER USER PASS
 --verbose
