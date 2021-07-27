@@ -12,6 +12,8 @@ import requests
 import pytz
 
 from emailing import send_emails
+from plotting import plot4email
+
 
 def list_bins(url_prefix, dataset, instrument, start_date, end_date=None):
     url = f'{url_prefix}/api/list_bins'
@@ -230,9 +232,13 @@ def check_datafile(args, df_bins=None):
                 except requests.exceptions.RequestException as e:
                     print(f'  ERROR: set_pumpOff_aeratorOn({args.powerstrip}) - Connection Failed')
                     # TODO add pump states to email message
+            if args.plotfile:
+                plot4email(df_bins,df_log,args.threshold,title='',output=args.plotfile)
             if args.email_config:
                 subject = f"[{args.ifcb}] ALERT: Rust Above Threshold"
-                send_emails(SUBJECT=subject, BODY=msg, **email_args)
+                send_emails(SUBJECT=subject, BODY=msg,
+                            attachements=[args.plotfile] if args.plotfile else [],
+                            **email_args)
             # writing to pump logfile
             if args.v>=2: print(f'Saving new entry to logfile: {args.logfile}')
             df_log = df_log.append(pd.Series(name=bin_id, data={'pump_turned_off':now}))
@@ -308,6 +314,7 @@ if __name__ == '__main__':
     alert = parser.add_argument_group(title='Alerts', description=None)
     alert.add_argument('--emails', metavar='EMAIL', nargs='+')
     alert.add_argument('--email-config', metavar=('SMTP','USER','PASS'), nargs=3)
+    alert.add_argument('--plotfile', default='data/emailplot.png')
 
     # alternate method of providing arguments
     class LoadFromFile(argparse.Action):
